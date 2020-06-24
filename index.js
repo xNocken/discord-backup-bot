@@ -1,36 +1,96 @@
 const Discord = require('discord-module');
 const fs = require('fs');
+const Path = require('path');
 
+const { User, Channel } = Discord;
 const token = require('./token');
 
 const discord = new Discord({ token });
 
 const reactions = {};
 
+const deleteFolderRecursive = (path) => {
+  if (fs.existsSync(path)) {
+    fs.readdirSync(path).forEach((file) => {
+      const curPath = Path.join(path, file);
+      if (fs.lstatSync(curPath).isDirectory()) {
+        deleteFolderRecursive(curPath);
+      } else {
+        fs.unlinkSync(curPath);
+      }
+    });
+    fs.rmdirSync(path);
+  }
+};
+
 discord.onmessage = (message, reply) => {
   const args = message.content.split(' ');
-  args.splice(0, 2);
+  let allowed = false;
   let messages = [];
+
+  args.splice(0, 2);
 
   if (!fs.existsSync('data')) {
     fs.mkdirSync('data');
+  }
+
+  if (!fs.existsSync('data/settings.json')) {
+    fs.writeFileSync('data/settings.json', JSON.stringify({
+      channels: {},
+      guilds: {},
+      users: {},
+    }));
+  }
+
+  if (message.getChannel().type === Channel.types.DM) {
+    if (!message.author) {
+      return;
+    }
+
+    if (message.content.startsWith('#backup set')) {
+      const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+      switch (args[0]) {
+        case 'on':
+          settings.users[message.author.id] = true;
+          reply('Your messages will now be backuped.');
+
+          break;
+        case 'off':
+          settings.users[message.author.id] = false;
+          reply('Your messages will no longer be backuped. Contact the owner xNocken#9999 to get your already backuped messages removed');
+
+          break;
+        default:
+          reply('Use "on" or "off".');
+      }
+
+      fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+    }
+
+    return;
   }
 
   if (!fs.existsSync(`data/${message.getChannel().guildId}`)) {
     fs.mkdirSync(`data/${message.getChannel().guildId}`);
   }
 
-  if (!fs.existsSync('data/settings.json')) {
-    fs.writeFileSync('data/settings.json', JSON.stringify({
-      channels: {},
-    }));
-  }
-
   if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
     messages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
   }
 
+  if (message.content.startsWith('#backup')) {
+    const perms = message.getChannel().getPermissionOverwrite(discord.getGuildById(message.getChannel().guildId).members[message.author.id]);
+
+    allowed = perms.MANAGE_MESSAGES;
+  }
+
   if (message.content.startsWith('#backup index')) {
+    if (!allowed) {
+      reply('You have not enough permissions to use this command.');
+      return;
+    }
+
     reply('Indexing channel messages. This may take a while.');
 
     if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
@@ -72,6 +132,11 @@ discord.onmessage = (message, reply) => {
   }
 
   if (message.content.startsWith('#backup restore')) {
+    if (!allowed) {
+      reply('You have not enough permissions to use this command.');
+      return;
+    }
+
     if (!fs.existsSync(`data/${message.getChannel().guildId}/${args[0]}.json`)) {
       reply(`No backup found with channel name ${args[0]}.`);
 
@@ -104,14 +169,12 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
     });
   }
 
-  discord.on('MESSAGE_REACTION_ADD', (data) => {
-    console.log(data);
-    if (reactions[data.user_id]) {
-      reactions[data.user_id](data.emoji.name.match('👍'));
-    }
-  });
-
   if (message.content.startsWith('#backup set')) {
+    if (!allowed) {
+      reply('You have not enough permissions to use this command.');
+      return;
+    }
+
     const settings = JSON.parse(fs.readFileSync('data/settings.json'));
 
     switch (args[0]) {
@@ -134,33 +197,51 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
   }
 
   if (message.content.startsWith('#backup delete')) {
-    if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-      reply('No backup for this channel found.');
+    if (!allowed) {
+      reply('You have not enough permissions to use this command.');
       return;
     }
 
-    reply('Are you sure?', null, (response) => {
-      response.react('👍');
-      setTimeout(() => {
-        response.react('👎');
-      }, 500);
+    if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
+      reply('No backup for this channel found.');
+    } else {
+      reply('Are you sure?', null, (response) => {
+        console.log(response);
+        response.react('👍');
+        setTimeout(() => {
+          response.react('👎');
+        }, 500);
 
-      reactions[message.author.id] = (willDelete) => {
-        if (willDelete) {
-          try {
-            fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`);
-            reply('Backup successfully deleted.');
-          } catch (err) {
-            reply('Error while deleting backup. Contact the Owner xNocken#9999 for information.');
+        reactions[message.author.id] = (willDelete) => {
+          if (willDelete) {
+            try {
+              fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`);
+              reply('Backup successfully deleted.');
+            } catch (err) {
+              reply('Error while deleting backup. Contact the Owner xNocken#9999 for information.');
+            }
+          } else {
+            reply('Delete aborted.');
           }
-        } else {
-          reply('Delete aborted.');
-        }
-      };
-    });
+        };
+      });
+    }
   }
 
-  if (message.type !== 0 || !message.author || (message.nonce && message.nonce.match('backupmessage')) || !JSON.parse(fs.readFileSync('data/settings.json')).channels[message.getChannel().id]) {
+  if (message.content.startsWith('#backup status')) {
+    const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+    reply(`This channel will${settings.channels[message.getChannel().id] ? '' : ' not'} be backed up`);
+  }
+
+  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+  if ((message.type !== 0
+    || !message.author
+    || (message.nonce && message.nonce.match('backupmessage'))
+    || !settings.channels[message.getChannel().id]
+    || !settings.users[message.author.id])
+    && !message.author.bot) {
     return;
   }
 
@@ -175,3 +256,66 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
   fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify(messages));
 };
+
+discord.on('MESSAGE_REACTION_ADD', (data) => {
+  if (reactions[data.user_id]) {
+    reactions[data.user_id](data.emoji.name.match('👍'));
+  }
+});
+
+discord.on('GUILD_DELETE', (data) => {
+  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+  console.log(data);
+
+  settings.guilds[data.id] = new Date();
+
+  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+});
+
+discord.on('GUILD_CREATE', (data) => {
+  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+  delete settings.guilds[data.id];
+
+  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+});
+
+discord.on('GUILD_MEMBER_ADD', (data) => {
+  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+  settings.users[data.user.id] = true;
+
+  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+
+  const user = discord.getUserById(data.user.id);
+
+  if (!user) {
+    User.getUserById(data.user.id, (newUser) => {
+      newUser.getPrivateChannelId((id) => {
+        setTimeout(() => {
+          discord.getChannelById(id).sendMessage('By joining this server you agree that I can backup messages sent by you in this server. You can deactivate that your messages get backed up by sending "#backup set off" to me in this channel\n\nYou can check if a channel gets backed up by sending #backup status', false, () => { });
+        }, 1000);
+      });
+    });
+  }
+
+  user.getPrivateChannelId((id) => {
+    setTimeout(() => {
+      discord.getChannelById(id).sendMessage('By joining this server you agree that I can backup messages sent by you in this server. You can deactivate that your messages get backed up by sending "#backup set off" to me in this channel\n\nYou can check if a channel gets backed up by sending #backup status', false, () => { });
+    }, 1000);
+  });
+});
+
+setInterval(() => {
+  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+  Object.entries(settings.guilds).forEach((guild) => {
+    if ((new Date(guild[1]).getTime() + 1000 * 60 * 60 * 24) < new Date()) {
+      deleteFolderRecursive(`data/${guild[0]}`);
+    }
+
+    delete settings.guilds[guild[0]];
+  });
+
+  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+}, 1000 * 60 * 1);
