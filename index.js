@@ -20,7 +20,7 @@ discord.onmessage = (message, reply) => {
     fs.mkdirSync(`data/${message.getChannel().guildId}`);
   }
 
-  if (!fs.existsSync(`data/settings.json`)) {
+  if (!fs.existsSync('data/settings.json')) {
     fs.writeFileSync('data/settings.json', JSON.stringify({
       channels: {},
     }));
@@ -30,21 +30,20 @@ discord.onmessage = (message, reply) => {
     messages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
   }
 
-  let index = 0;
   if (message.content.startsWith('#backup index')) {
     reply('Indexing channel messages. This may take a while.');
 
     if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-      fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)
+      fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`);
     }
 
     let messagess = [];
 
     const callback = (messageRes) => {
-      messageRes = messageRes.reverse();
+      const newmessageRes = messageRes.reverse();
       messagess = [
-        ...messageRes.map((item) => ({
-          author: item.author.username + '#' + item.author.discriminator,
+        ...newmessageRes.map((item) => ({
+          author: `${item.author.username}#${item.author.discriminator}`,
           content: item.content,
           id: item.id,
           attachments: item.attachments,
@@ -52,7 +51,7 @@ discord.onmessage = (message, reply) => {
           embeds: item.embeds,
         })),
         ...messagess,
-      ]
+      ];
 
       if (messageRes.length !== 50) {
         if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
@@ -60,16 +59,16 @@ discord.onmessage = (message, reply) => {
         }
 
         fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify([...messagess, ...messages]));
-        reply(`Done. Indexed ${messagess.length} messages.`)
+        reply(`Done. Indexed ${messagess.length} messages.`);
         return;
       }
 
       setTimeout(() => {
-        message.getChannel().getMessages(50, messagess[0].id, callback)
-      }, 1000)
+        message.getChannel().getMessages(50, messagess[0].id, callback);
+      }, 1000);
     };
 
-    message.getChannel().getMessages(50, message.id, callback)
+    message.getChannel().getMessages(50, message.id, callback);
   }
 
   if (message.content.startsWith('#backup restore')) {
@@ -77,33 +76,32 @@ discord.onmessage = (message, reply) => {
       reply(`No backup found with channel name ${args[0]}.`);
 
       return;
-    } else {
-      const restoreMessages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${args[0]}.json`));
-
-      const startTime = new Date();
-
-      restoreMessages.forEach((Rmessage, index) => {
-        const body = {
-          content: `${(new Date(Rmessage.time).toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: 'numeric',
-          }))} ${Rmessage.author}: ${Rmessage.content}
-${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
-          file: Rmessage.attachments[0],
-          embed: Rmessage.embeds ? Rmessage.embeds[0] : null,
-          nonce: 'backupmessage' + Math.floor(Math.random() * 10000000000)
-        }
-
-        message.getChannel().sendMessageBody(body, () => {
-          if (index === restoreMessages.length - 1) {
-            reply(`Restored ${restoreMessages.length} messages in ${(((new Date()) - startTime) / 1000 / 60).toFixed(2)} minutes.`);
-          }
-        });
-      });
     }
+    const restoreMessages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${args[0]}.json`));
+
+    const startTime = new Date();
+
+    restoreMessages.forEach((Rmessage, index) => {
+      const body = {
+        content: `${(new Date(Rmessage.time).toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric',
+        }))} ${Rmessage.author}: ${Rmessage.content}
+${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
+        file: Rmessage.attachments[0],
+        embed: Rmessage.embeds ? Rmessage.embeds[0] : null,
+        nonce: `backupmessage${Math.floor(Math.random() * 10000000000)}`,
+      };
+
+      message.getChannel().sendMessageBody(body, () => {
+        if (index === restoreMessages.length - 1) {
+          reply(`Restored ${restoreMessages.length} messages in ${(((new Date()) - startTime) / 1000 / 60).toFixed(2)} minutes.`);
+        }
+      });
+    });
   }
 
   discord.on('MESSAGE_REACTION_ADD', (data) => {
@@ -111,7 +109,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
     if (reactions[data.user_id]) {
       reactions[data.user_id](data.emoji.name.match('👍'));
     }
-  })
+  });
 
   if (message.content.startsWith('#backup set')) {
     const settings = JSON.parse(fs.readFileSync('data/settings.json'));
@@ -124,7 +122,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
         break;
       case 'off':
         settings.channels[message.getChannel().id] = false;
-        reply('Messages in this channel will no longer be backed up. Use #backup delete in this channel to delete the existing backup.')
+        reply('Messages in this channel will no longer be backed up. Use #backup delete in this channel to delete the existing backup.');
 
         break;
 
@@ -137,28 +135,28 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
   if (message.content.startsWith('#backup delete')) {
     if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-      reply('No backup for this channel found.')
+      reply('No backup for this channel found.');
       return;
     }
-    
+
     reply('Are you sure?', null, (response) => {
       response.react('👍');
       setTimeout(() => {
         response.react('👎');
-      }, 500)
+      }, 500);
 
       reactions[message.author.id] = (willDelete) => {
         if (willDelete) {
           try {
             fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`);
-            reply('Backup successfully deleted.')
-          } catch {
+            reply('Backup successfully deleted.');
+          } catch (err) {
             reply('Error while deleting backup. Contact the Owner xNocken#9999 for information.');
           }
         } else {
           reply('Delete aborted.');
         }
-      }
+      };
     });
   }
 
@@ -167,7 +165,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
   }
 
   messages.push({
-    author: message.author.username + '#' + message.author.discriminator,
+    author: `${message.author.username}#${message.author.discriminator}`,
     content: message.content,
     id: message.id,
     attachments: message.attachments,
