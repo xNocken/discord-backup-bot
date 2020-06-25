@@ -29,8 +29,8 @@ const backUpMessage = (message) => {
   const settings = JSON.parse(fs.readFileSync('data/settings.json'));
 
   if (message.type !== 0
-    || (!settings.users[message.author.id] && !message.author.bot)
     || !message.author
+    || (!settings.users[message.author.id] && !message.author.bot)
     || (message.nonce && message.nonce.match('backupmessage'))
     || !settings.channels[message.getChannel().id]) {
     return;
