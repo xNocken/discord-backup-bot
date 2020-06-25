@@ -4,6 +4,7 @@ const Path = require('path');
 
 const { User, Channel } = Discord;
 const token = require('./token');
+const translations = require('./messages');
 
 const discord = new Discord({ token });
 
@@ -23,10 +24,33 @@ const deleteFolderRecursive = (path) => {
   }
 };
 
+const backUpMessage = (message) => {
+  const messages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
+  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+  if (message.type !== 0
+    || (!settings.users[message.author.id] && !message.author.bot)
+    || !message.author
+    || (message.nonce && message.nonce.match('backupmessage'))
+    || !settings.channels[message.getChannel().id]) {
+    return;
+  }
+
+  messages.push({
+    author: `${message.author.username}#${message.author.discriminator}`,
+    content: message.content,
+    id: message.id,
+    attachments: message.attachments,
+    time: message.time,
+    embeds: message.embeds,
+  });
+
+  fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify(messages));
+};
+
 discord.onmessage = (message, reply) => {
   const args = message.content.split(' ');
   let allowed = false;
-  let messages = [];
 
   args.splice(0, 2);
 
@@ -53,16 +77,16 @@ discord.onmessage = (message, reply) => {
       switch (args[0]) {
         case 'on':
           settings.users[message.author.id] = true;
-          reply('Your messages will now be backuped.');
+          reply(translations['private.activate']);
 
           break;
         case 'off':
           settings.users[message.author.id] = false;
-          reply('Your messages will no longer be backuped. Contact the owner xNocken#9999 to get your already backuped messages removed');
+          reply(translations['private.deactivate']);
 
           break;
         default:
-          reply('Use "on" or "off".');
+          reply(translations['setting.invalid']);
       }
 
       fs.writeFileSync('data/settings.json', JSON.stringify(settings));
@@ -75,56 +99,44 @@ discord.onmessage = (message, reply) => {
     fs.mkdirSync(`data/${message.getChannel().guildId}`);
   }
 
-  if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-    messages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
+  if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
+    fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, '[]');
   }
 
+  backUpMessage(message);
+
   if (message.content.startsWith('#backup')) {
-    const perms = message.getChannel().getPermissionOverwrite(discord.getGuildById(message.getChannel().guildId).members[message.author.id]);
+    const perms = message.getChannel().getPermissionOverwrite(message.author.id);
 
     allowed = perms.MANAGE_MESSAGES;
   }
 
   if (message.content.startsWith('#backup index')) {
     if (!allowed) {
-      reply('You have not enough permissions to use this command.');
+      reply(translations.nopermissions);
       return;
     }
 
-    reply('Indexing channel messages. This may take a while.');
+    reply(translations['index.start']);
 
     if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-      fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`);
+      fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, '[]');
     }
 
-    let messagess = [];
+    let count = 0;
 
     const callback = (messageRes) => {
+      count += messageRes.length;
       const newmessageRes = messageRes.reverse();
-      messagess = [
-        ...newmessageRes.map((item) => ({
-          author: `${item.author.username}#${item.author.discriminator}`,
-          content: item.content,
-          id: item.id,
-          attachments: item.attachments,
-          time: item.time,
-          embeds: item.embeds,
-        })),
-        ...messagess,
-      ];
+      newmessageRes.forEach((item) => backUpMessage(item));
 
       if (messageRes.length !== 50) {
-        if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-          messages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
-        }
-
-        fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify([...messagess, ...messages]));
-        reply(`Done. Indexed ${messagess.length} messages.`);
+        reply(translations['index.complete'](count));
         return;
       }
 
       setTimeout(() => {
-        message.getChannel().getMessages(50, messagess[0].id, callback);
+        message.getChannel().getMessages(50, newmessageRes[0].id, callback);
       }, 1000);
     };
 
@@ -133,12 +145,12 @@ discord.onmessage = (message, reply) => {
 
   if (message.content.startsWith('#backup restore')) {
     if (!allowed) {
-      reply('You have not enough permissions to use this command.');
+      reply(translations.nopermissions);
       return;
     }
 
     if (!fs.existsSync(`data/${message.getChannel().guildId}/${args[0]}.json`)) {
-      reply(`No backup found with channel name ${args[0]}.`);
+      reply(translations['restore.notfound'](args[0]));
 
       return;
     }
@@ -163,7 +175,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
       message.getChannel().sendMessageBody(body, () => {
         if (index === restoreMessages.length - 1) {
-          reply(`Restored ${restoreMessages.length} messages in ${(((new Date()) - startTime) / 1000 / 60).toFixed(2)} minutes.`);
+          reply(translations['restore.complete'](restoreMessages.length, (((new Date()) - startTime) / 1000 / 60).toFixed(2)));
         }
       });
     });
@@ -171,7 +183,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
   if (message.content.startsWith('#backup set')) {
     if (!allowed) {
-      reply('You have not enough permissions to use this command.');
+      reply(translations.nopermissions);
       return;
     }
 
@@ -180,17 +192,17 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
     switch (args[0]) {
       case 'on':
         settings.channels[message.getChannel().id] = true;
-        reply('Messages in this channel will be backed up.');
+        reply(translations['setting.enable.guild']);
 
         break;
       case 'off':
         settings.channels[message.getChannel().id] = false;
-        reply('Messages in this channel will no longer be backed up. Use #backup delete in this channel to delete the existing backup.');
+        reply(translations['setting.disable.guild']);
 
         break;
 
       default:
-        reply('Use "on" or "off".');
+        reply(translations['setting.invalid']);
     }
 
     fs.writeFileSync('data/settings.json', JSON.stringify(settings));
@@ -198,15 +210,14 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
   if (message.content.startsWith('#backup delete')) {
     if (!allowed) {
-      reply('You have not enough permissions to use this command.');
+      reply(translations.nopermissions);
       return;
     }
 
     if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-      reply('No backup for this channel found.');
+      reply(translations['restore.notfound']);
     } else {
-      reply('Are you sure?', null, (response) => {
-        console.log(response);
+      reply(translations['delete.sure'], null, (response) => {
         response.react('👍');
         setTimeout(() => {
           response.react('👎');
@@ -216,12 +227,12 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
           if (willDelete) {
             try {
               fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`);
-              reply('Backup successfully deleted.');
+              reply(translations['delete.completed']);
             } catch (err) {
-              reply('Error while deleting backup. Contact the Owner xNocken#9999 for information.');
+              reply(translations['delete.error']);
             }
           } else {
-            reply('Delete aborted.');
+            reply(translations['delete.abort']);
           }
         };
       });
@@ -233,28 +244,6 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
     reply(`This channel will${settings.channels[message.getChannel().id] ? '' : ' not'} be backed up`);
   }
-
-  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
-
-  if ((message.type !== 0
-    || !message.author
-    || (message.nonce && message.nonce.match('backupmessage'))
-    || !settings.channels[message.getChannel().id]
-    || !settings.users[message.author.id])
-    && !message.author.bot) {
-    return;
-  }
-
-  messages.push({
-    author: `${message.author.username}#${message.author.discriminator}`,
-    content: message.content,
-    id: message.id,
-    attachments: message.attachments,
-    time: message.time,
-    embeds: message.embeds,
-  });
-
-  fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify(messages));
 };
 
 discord.on('MESSAGE_REACTION_ADD', (data) => {
@@ -265,7 +254,6 @@ discord.on('MESSAGE_REACTION_ADD', (data) => {
 
 discord.on('GUILD_DELETE', (data) => {
   const settings = JSON.parse(fs.readFileSync('data/settings.json'));
-  console.log(data);
 
   settings.guilds[data.id] = new Date();
 
@@ -284,6 +272,10 @@ discord.on('GUILD_MEMBER_ADD', (data) => {
   const settings = JSON.parse(fs.readFileSync('data/settings.json'));
 
   settings.users[data.user.id] = true;
+
+  if (settings.force[data.guildId]) {
+    discord.getGuildById(data.guildId).userAddRoles([settings.force[data.guildId].role]);
+  }
 
   fs.writeFileSync('data/settings.json', JSON.stringify(settings));
 

@@ -17,5 +17,6 @@ module.exports = {
   rules: {
     'func-names': 0,
     'no-console': 0,
+    'no-bitwise': 0,
   },
 };
