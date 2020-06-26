@@ -130,17 +130,17 @@ discord.onmessage = (message, reply) => {
       const newmessageRes = messageRes.reverse();
       newmessageRes.forEach((item) => backUpMessage(item));
 
-      if (messageRes.length !== 50) {
+      if (messageRes.length !== 100) {
         reply(translations['index.complete'](count));
         return;
       }
 
       setTimeout(() => {
-        message.getChannel().getMessages(50, newmessageRes[0].id, callback);
+        message.getChannel().getMessages(100, newmessageRes[0].id, callback);
       }, 1000);
     };
 
-    message.getChannel().getMessages(50, message.id, callback);
+    message.getChannel().getMessages(100, message.id, callback);
   }
 
   if (message.content.startsWith('#backup restore')) {
@@ -218,9 +218,9 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
       reply(translations['restore.notfound']);
     } else {
       reply(translations['delete.sure'], null, (response) => {
-        response.react('👍');
+        response.react('✔️');
         setTimeout(() => {
-          response.react('👎');
+          response.react('✖️');
         }, 500);
 
         reactions[message.author.id] = (willDelete) => {
@@ -248,7 +248,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
 discord.on('MESSAGE_REACTION_ADD', (data) => {
   if (reactions[data.user_id]) {
-    reactions[data.user_id](data.emoji.name.match('👍'));
+    reactions[data.user_id](data.emoji.name.match('✔️'));
   }
 });
 
@@ -262,6 +262,14 @@ discord.on('GUILD_DELETE', (data) => {
 
 discord.on('GUILD_CREATE', (data) => {
   const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+
+  const members = Object.values(discord.getGuildById(data.id).members);
+
+  members.forEach((member) => {
+    if (settings.users[member.user.id] === undefined) {
+      settings.users[member.user.id] = true;
+    }
+  });
 
   delete settings.guilds[data.id];
 
@@ -310,4 +318,4 @@ setInterval(() => {
   });
 
   fs.writeFileSync('data/settings.json', JSON.stringify(settings));
-}, 1000 * 60 * 1);
+}, 1000 * 60 * 30);
