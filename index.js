@@ -281,10 +281,6 @@ discord.on('GUILD_MEMBER_ADD', (data) => {
 
   settings.users[data.user.id] = true;
 
-  if (settings.force[data.guildId]) {
-    discord.getGuildById(data.guildId).userAddRoles([settings.force[data.guildId].role]);
-  }
-
   fs.writeFileSync('data/settings.json', JSON.stringify(settings));
 
   const user = discord.getUserById(data.user.id);
