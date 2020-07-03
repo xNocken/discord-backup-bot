@@ -25,7 +25,7 @@ const deleteFolderRecursive = (path) => {
 };
 
 const backUpMessage = (message) => {
-  const messages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
+  const channel = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
   const settings = JSON.parse(fs.readFileSync('data/settings.json'));
 
   if (message.type !== 0
@@ -36,7 +36,7 @@ const backUpMessage = (message) => {
     return;
   }
 
-  messages.push({
+  channel.messages.push({
     author: `${message.author.username}#${message.author.discriminator}`,
     content: message.content,
     id: message.id,
@@ -45,7 +45,7 @@ const backUpMessage = (message) => {
     embeds: message.embeds,
   });
 
-  fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify(messages));
+  fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify(channel));
 };
 
 discord.onmessage = (message, reply) => {
@@ -100,7 +100,10 @@ discord.onmessage = (message, reply) => {
   }
 
   if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-    fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, '[]');
+    fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify({
+      id: message.getChannel().id,
+      messages: [],
+    }));
   }
 
   backUpMessage(message);
@@ -120,23 +123,32 @@ discord.onmessage = (message, reply) => {
     reply(translations['index.start']);
 
     if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-      fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, '[]');
+      fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify({
+        id: message.getChannel().id,
+        messages: [],
+      }));
     }
 
     let count = 0;
+    const messageList = [];
 
     const callback = (messageRes) => {
       count += messageRes.length;
       const newmessageRes = messageRes.reverse();
-      newmessageRes.forEach((item) => backUpMessage(item));
+      newmessageRes.reverse();
+      newmessageRes.forEach((item) => messageList.push(item));
 
       if (messageRes.length !== 100) {
         reply(translations['index.complete'](count));
+        messageList.reverse();
+        messageList.forEach((item) => {
+          backUpMessage(item);
+        });
         return;
       }
 
       setTimeout(() => {
-        message.getChannel().getMessages(100, newmessageRes[0].id, callback);
+        message.getChannel().getMessages(100, messageRes[messageRes.length - 1].id, callback);
       }, 1000);
     };
 
