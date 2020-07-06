@@ -10,6 +10,27 @@ const discord = new Discord({ token });
 
 const reactions = {};
 
+const limit = 10000;
+
+if (!fs.existsSync('data')) {
+  fs.mkdirSync('data');
+}
+
+if (!fs.existsSync('data/settings.json')) {
+  fs.writeFileSync('data/settings.json', JSON.stringify({
+    channels: {},
+    guilds: {},
+  }));
+}
+
+if (!fs.existsSync('data/left.json')) {
+  fs.writeFileSync('data/left.json', '{}');
+}
+
+if (!fs.existsSync('data/users.json')) {
+  fs.writeFileSync('data/users.json', '{}');
+}
+
 const deleteFolderRecursive = (path) => {
   if (fs.existsSync(path)) {
     fs.readdirSync(path).forEach((file) => {
@@ -20,17 +41,35 @@ const deleteFolderRecursive = (path) => {
         fs.unlinkSync(curPath);
       }
     });
+
     fs.rmdirSync(path);
   }
 };
 
+const getChannelIdByName = (name, guildId) => {
+  let id = false;
+
+  const folder = fs.readdirSync(`data/${guildId}`);
+
+  folder.forEach((fileName) => {
+    console.log(JSON.parse(fs.readFileSync(`data/${guildId}/${fileName}`)), name);
+
+    if (JSON.parse(fs.readFileSync(`data/${guildId}/${fileName}`)).name === name) {
+      [id] = fileName.split('.json');
+    }
+  });
+
+  return id;
+};
+
 const backUpMessage = (message) => {
-  const channel = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`));
-  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+  const channel = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${message.getChannel().id}.json`));
+  const settings = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}.json`));
+  const users = JSON.parse(fs.readFileSync('data/users.json'));
 
   if (message.type !== 0
     || !message.author
-    || (!settings.users[message.author.id] && !message.author.bot)
+    || (!users[message.author.id] && !message.author.bot)
     || (message.nonce && message.nonce.match('backupmessage'))
     || !settings.channels[message.getChannel().id]) {
     return;
@@ -45,7 +84,11 @@ const backUpMessage = (message) => {
     embeds: message.embeds,
   });
 
-  fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify(channel));
+  if (channel.messages.length > limit) {
+    channel.messages.splice(0, 1);
+  }
+
+  fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().id}.json`, JSON.stringify(channel));
 };
 
 discord.onmessage = (message, reply) => {
@@ -54,34 +97,22 @@ discord.onmessage = (message, reply) => {
 
   args.splice(0, 2);
 
-  if (!fs.existsSync('data')) {
-    fs.mkdirSync('data');
-  }
-
-  if (!fs.existsSync('data/settings.json')) {
-    fs.writeFileSync('data/settings.json', JSON.stringify({
-      channels: {},
-      guilds: {},
-      users: {},
-    }));
-  }
-
   if (message.getChannel().type === Channel.types.DM) {
     if (!message.author) {
       return;
     }
 
     if (message.content.startsWith('#backup set')) {
-      const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+      const settings = JSON.parse(fs.readFileSync('data/users.json'));
 
       switch (args[0]) {
         case 'on':
-          settings.users[message.author.id] = true;
+          settings[message.author.id] = true;
           reply(translations['private.activate']);
 
           break;
         case 'off':
-          settings.users[message.author.id] = false;
+          settings[message.author.id] = false;
           reply(translations['private.deactivate']);
 
           break;
@@ -89,7 +120,7 @@ discord.onmessage = (message, reply) => {
           reply(translations['setting.invalid']);
       }
 
-      fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+      fs.writeFileSync('data/users.json', JSON.stringify(settings));
     }
 
     return;
@@ -99,9 +130,9 @@ discord.onmessage = (message, reply) => {
     fs.mkdirSync(`data/${message.getChannel().guildId}`);
   }
 
-  if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-    fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify({
-      id: message.getChannel().id,
+  if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().id}.json`)) {
+    fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().id}.json`, JSON.stringify({
+      name: message.getChannel().name,
       messages: [],
     }));
   }
@@ -122,13 +153,6 @@ discord.onmessage = (message, reply) => {
 
     reply(translations['index.start']);
 
-    if (fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
-      fs.writeFileSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`, JSON.stringify({
-        id: message.getChannel().id,
-        messages: [],
-      }));
-    }
-
     let count = 0;
     const messageList = [];
 
@@ -138,7 +162,7 @@ discord.onmessage = (message, reply) => {
       newmessageRes.reverse();
       newmessageRes.forEach((item) => messageList.push(item));
 
-      if (messageRes.length !== 100) {
+      if (messageRes.length !== 100 || messageList.length >= limit) {
         reply(translations['index.complete'](count));
         messageList.reverse();
         messageList.forEach((item) => {
@@ -161,14 +185,18 @@ discord.onmessage = (message, reply) => {
       return;
     }
 
-    if (!fs.existsSync(`data/${message.getChannel().guildId}/${args[0]}.json`)) {
-      reply(translations['restore.notfound'](args[0]));
+    const id = getChannelIdByName(args[0], message.getChannel().guildId);
 
+    if (!id) {
+      reply(translations['restore.notfound'](args[0]));
       return;
     }
-    const restoreMessages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${args[0]}.json`));
 
-    const startTime = new Date();
+    const restoreMessages = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}/${id}.json`)).messages;
+
+    const startTime = (new Date());
+
+    reply(translations['restore.start']((restoreMessages.length * 1) * 1000));
 
     restoreMessages.forEach((Rmessage, index) => {
       const body = {
@@ -187,7 +215,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
 
       message.getChannel().sendMessageBody(body, () => {
         if (index === restoreMessages.length - 1) {
-          reply(translations['restore.complete'](restoreMessages.length, (((new Date()) - startTime) / 1000 / 60).toFixed(2)));
+          reply(translations['restore.complete'](restoreMessages.length, ((new Date())) - startTime));
         }
       });
     });
@@ -199,7 +227,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
       return;
     }
 
-    const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+    const settings = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}.json`));
 
     switch (args[0]) {
       case 'on':
@@ -217,7 +245,9 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
         reply(translations['setting.invalid']);
     }
 
-    fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+    console.log(settings, `data/${message.getChannel().guildId}.json`);
+
+    console.log(fs.writeFileSync(`data/${message.getChannel().guildId}.json`, JSON.stringify(settings)));
   }
 
   if (message.content.startsWith('#backup delete')) {
@@ -226,10 +256,10 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
       return;
     }
 
-    if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`)) {
+    if (!fs.existsSync(`data/${message.getChannel().guildId}/${message.getChannel().id}.json`)) {
       reply(translations['restore.notfound']);
     } else {
-      reply(translations['delete.sure'], null, (response) => {
+      reply(translations['delete.sure'](message.getChannel().name), null, (response) => {
         response.react('✔️');
         setTimeout(() => {
           response.react('✖️');
@@ -238,7 +268,7 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
         reactions[message.author.id] = (willDelete) => {
           if (willDelete) {
             try {
-              fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().name}.json`);
+              fs.unlinkSync(`data/${message.getChannel().guildId}/${message.getChannel().id}.json`);
               reply(translations['delete.completed']);
             } catch (err) {
               reply(translations['delete.error']);
@@ -252,9 +282,9 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
   }
 
   if (message.content.startsWith('#backup status')) {
-    const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+    const settings = JSON.parse(fs.readFileSync(`data/${message.getChannel().guildId}.json`));
 
-    reply(`This channel will${settings.channels[message.getChannel().id] ? '' : ' not'} be backed up`);
+    reply(translations['backup.status'](settings.channels[message.getChannel().id]));
   }
 };
 
@@ -265,35 +295,46 @@ discord.on('MESSAGE_REACTION_ADD', (data) => {
 });
 
 discord.on('GUILD_DELETE', (data) => {
-  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+  const settings = JSON.parse(fs.readFileSync('data/left.json'));
 
-  settings.guilds[data.id] = new Date();
+  settings.left[data.id] = new Date();
 
-  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+  fs.writeFileSync('data/left.json', JSON.stringify(settings));
 });
 
 discord.on('GUILD_CREATE', (data) => {
-  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+  if (!fs.existsSync(`data/${data.id}.json`)) {
+    fs.writeFileSync(`data/${data.id}.json`, JSON.stringify({
+      channels: [],
+      left: '',
+    }));
+  }
+
+  const settings = JSON.parse(fs.readFileSync(`data/${data.id}.json`));
+  const left = JSON.parse(fs.readFileSync('data/left.json'));
+  const membersSettings = JSON.parse(fs.readFileSync('data/users.json'));
 
   const members = Object.values(discord.getGuildById(data.id).members);
 
   members.forEach((member) => {
-    if (settings.users[member.user.id] === undefined) {
-      settings.users[member.user.id] = true;
+    if (membersSettings[member.user.id] === undefined) {
+      membersSettings[member.user.id] = true;
     }
   });
 
-  delete settings.guilds[data.id];
+  delete left[data.id];
 
-  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+  fs.writeFileSync(`data/${data.id}.json`, JSON.stringify(settings));
+  fs.writeFileSync('data/users.json', JSON.stringify(membersSettings));
+  fs.writeFileSync('data/left.json', JSON.stringify(left));
 });
 
 discord.on('GUILD_MEMBER_ADD', (data) => {
-  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+  const settings = JSON.parse(fs.readFileSync('data/users.json'));
 
   settings.users[data.user.id] = true;
 
-  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+  fs.writeFileSync('data/users.json', JSON.stringify(settings));
 
   const user = discord.getUserById(data.user.id);
 
@@ -301,7 +342,7 @@ discord.on('GUILD_MEMBER_ADD', (data) => {
     User.getUserById(data.user.id, (newUser) => {
       newUser.getPrivateChannelId((id) => {
         setTimeout(() => {
-          discord.getChannelById(id).sendMessage('By joining this server you agree that I can backup messages sent by you in this server. You can deactivate that your messages get backed up by sending "#backup set off" to me in this channel\n\nYou can check if a channel gets backed up by sending #backup status', false, () => { });
+          discord.getChannelById(id).sendMessage(translations['private.tos'], false, () => { });
         }, 1000);
       });
     });
@@ -309,21 +350,41 @@ discord.on('GUILD_MEMBER_ADD', (data) => {
 
   user.getPrivateChannelId((id) => {
     setTimeout(() => {
-      discord.getChannelById(id).sendMessage('By joining this server you agree that I can backup messages sent by you in this server. You can deactivate that your messages get backed up by sending "#backup set off" to me in this channel\n\nYou can check if a channel gets backed up by sending #backup status', false, () => { });
+      discord.getChannelById(id).sendMessage(translations['private.tos'], false, () => { });
     }, 1000);
   });
 });
 
-setInterval(() => {
-  const settings = JSON.parse(fs.readFileSync('data/settings.json'));
+discord.on('CHANNEL_UPDATE', (channel) => {
+  if (fs.existsSync(`data/${channel.guild_id}/${channel.id}.json`)) {
+    const jsonChannel = JSON.parse(fs.readFileSync(`data/${channel.guild_id}/${channel.id}.json`));
 
-  Object.entries(settings.guilds).forEach((guild) => {
+    jsonChannel.name = channel.name;
+
+    fs.writeFileSync(`data/${channel.guild_id}/${channel.id}.json`, JSON.stringify(jsonChannel));
+  }
+});
+
+discord.on('READY', (data) => {
+  if (!data.user.bot) {
+    console.error('User needs to be a bot');
+    process.exit();
+  }
+
+  console.log('Successfully started bot');
+  console.log(`Username: ${data.user.username}#${data.user.discriminator}`);
+});
+
+setInterval(() => {
+  const settings = JSON.parse(fs.readFileSync('data/left.json'));
+
+  Object.entries(settings).forEach((guild) => {
     if ((new Date(guild[1]).getTime() + 1000 * 60 * 60 * 24) < new Date()) {
       deleteFolderRecursive(`data/${guild[0]}`);
     }
 
-    delete settings.guilds[guild[0]];
+    delete settings[guild[0]];
   });
 
-  fs.writeFileSync('data/settings.json', JSON.stringify(settings));
+  fs.writeFileSync('data/left.json', JSON.stringify(settings));
 }, 1000 * 60 * 30);
