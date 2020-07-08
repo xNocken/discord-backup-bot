@@ -10,6 +10,7 @@ module.exports = {
   'setting.invalid': 'Use "on" or "off".',
   'private.activate': 'Your messages will now be backed up.',
   nopermissions: 'You have insufficient permission(s) to use this command.',
+  notfound: 'Command not found. Use \'#backup help\' for help',
   'index.start': 'Indexing channel messages. This may take a while.',
   'index.complete': (count) => `Done. Indexed ${count} messages.`,
   'restore.notfound': (name) => `No backup found with channel name ${name}.`,
