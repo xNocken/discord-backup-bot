@@ -1,5 +1,6 @@
 const fs = require('fs');
 const globals = require('./globals');
+const { user } = require('discord-module/src/globals');
 
 const backUpMessage = (message) => {
   const { guildId, id: channelId } = message.getChannel();
@@ -8,16 +9,38 @@ const backUpMessage = (message) => {
   const settings = JSON.parse(fs.readFileSync(`data/${guildId}.json`));
   const users = JSON.parse(fs.readFileSync('data/users.json'));
 
+  if (message.author && !fs.existsSync(`data/users/${message.author.id}.json`)) {
+    fs.writeFileSync(`data/users/${message.author.id}.json`, JSON.stringify({
+      guilds: {},
+    }));
+  }
+
+  let userChannels;
+
+  if (message.author) {
+    userChannels = JSON.parse(fs.readFileSync(`data/users/${message.author.id}.json`));
+  } else {
+    userChannels = false;
+  }
+
+  if (userChannels) {
+    if (!userChannels.guilds[guildId]) {
+      userChannels.guilds[guildId] = {};
+    }
+
+    userChannels.guilds[guildId][channelId] = true;
+  }
+
   if (message.type !== 0
-    || !message.author
-    || (!users[message.author.id] && !message.author.bot)
+    || (message.author && !users[message.author.id] && !message.author.bot)
     || (message.nonce && message.nonce.match('backupmessage'))
     || !settings.channels[channelId]) {
     return;
   }
 
   channel.messages.push({
-    author: `${message.author.username}#${message.author.discriminator}`,
+    author: message.author ? `${message.author.username}#${message.author.discriminator}` : 'Deleted User#0000',
+    userId: message.author ? message.author.id : '',
     content: message.content,
     id: message.id,
     attachments: message.attachments,
@@ -30,6 +53,10 @@ const backUpMessage = (message) => {
   }
 
   fs.writeFileSync(`data/${guildId}/${channelId}.json`, JSON.stringify(channel));
+
+  if (userChannels) {
+    fs.writeFileSync(`data/users/${message.author.id}.json`, JSON.stringify(userChannels));
+  }
 };
 
 const getChannelIdByName = (name, guildId) => {
@@ -38,8 +65,6 @@ const getChannelIdByName = (name, guildId) => {
   const folder = fs.readdirSync(`data/${guildId}`);
 
   folder.forEach((fileName) => {
-    console.log(JSON.parse(fs.readFileSync(`data/${guildId}/${fileName}`)), name);
-
     if (JSON.parse(fs.readFileSync(`data/${guildId}/${fileName}`)).name === name) {
       [id] = fileName.split('.json');
     }

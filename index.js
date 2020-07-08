@@ -16,6 +16,10 @@ if (!fs.existsSync('data')) {
   fs.mkdirSync('data');
 }
 
+if (!fs.existsSync('data/users')) {
+  fs.mkdirSync('data/users');
+}
+
 if (!fs.existsSync('data/settings.json')) {
   fs.writeFileSync('data/settings.json', JSON.stringify({
     channels: {},
@@ -51,6 +55,22 @@ const commandsList = {
     func: commands.set,
     admin: true,
   },
+  delete: {
+    func: commands.delete,
+    admin: true,
+  },
+  index: {
+    func: commands.index,
+    admin: true,
+  },
+  status: {
+    func: commands.status,
+    admin: true,
+  },
+  restore: {
+    func: commands.restore,
+    admin: true,
+  },
 };
 
 discord.onmessage = (message, reply) => {
@@ -59,15 +79,15 @@ discord.onmessage = (message, reply) => {
 
   args.splice(0, 1);
 
-  if (message.getChannel().type === Channel.types.DM) {
-    if (!message.author) {
-      return;
-    }
+  if (!message.author) {
+    return;
+  }
 
+  if (message.getChannel().type === Channel.types.DM) {
     if (message.content.startsWith('#backup set')) {
       const settings = JSON.parse(fs.readFileSync('data/users.json'));
 
-      switch (args[0]) {
+      switch (args[1]) {
         case 'on':
           settings[message.author.id] = true;
           reply(translations['private.activate']);
@@ -101,7 +121,7 @@ discord.onmessage = (message, reply) => {
 
   backUpMessage(message);
 
-  if (message.content.startsWith('#backup')) {
+  if (message.content.startsWith('*backup')) {
     const perms = message.getChannel().getPermissionOverwrite(message.author.id);
 
     const allowed = perms.MANAGE_MESSAGES;
@@ -167,7 +187,7 @@ discord.on('GUILD_CREATE', (data) => {
 discord.on('GUILD_MEMBER_ADD', (data) => {
   const settings = JSON.parse(fs.readFileSync('data/users.json'));
 
-  settings.users[data.user.id] = true;
+  settings[data.user.id] = true;
 
   fs.writeFileSync('data/users.json', JSON.stringify(settings));
 
@@ -206,8 +226,8 @@ discord.on('READY', (data) => {
     process.exit();
   }
 
-  console.log('Successfully started bot');
   console.log(`Username: ${data.user.username}#${data.user.discriminator}`);
+  console.log('Bot startet. Send messages to start indexing');
 });
 
 setInterval(() => {

@@ -22,5 +22,5 @@ module.exports = {
   'delete.completed': 'Backup successfully deleted.',
   'delete.error': 'Error while deleting backup. Contact the owner xNocken#9999 for more information.',
   'delete.abort': 'Deletion aborted.',
-  'private.tos': 'By joining this server you agree that I can backup messages sent by you in this server. You can deactivate that your messages get backed up by sending "#backup set off" to me in this channel\n\nYou can check if a channel gets backed up by sending #backup status',
+  'private.tos': 'By joining this server you agree that I can backup messages sent by you in this server. You can deactivate that your messages get backed up by sending "#backup set off" to me in this channel\n\nYou can check if a channel gets backed up by sending #backup status.\nIf you want to know about all messages I have backed up, you can visit my Homepage.\n\nHow to see all messages: \n1. Visit https://vortexbot.wtf\n2. Create an account\n3. Go to Backup Bot in the navigation\n4. Link your Discord account to verify its you.\n5. You now get a list of all servers that have messages stored sent by you.',
 };

@@ -94,9 +94,7 @@ const set = (reply, args, guildId, channelId) => {
       reply(translations['setting.invalid']);
   }
 
-  console.log(settings, `data/${guildId}.json`);
-
-  console.log(fs.writeFileSync(`data/${guildId}.json`, JSON.stringify(settings)));
+  fs.writeFileSync(`data/${guildId}.json`, JSON.stringify(settings));
 };
 
 const deletee = (reply, args, guildId, channelId, message) => {
