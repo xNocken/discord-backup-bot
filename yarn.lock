@@ -316,9 +316,9 @@ delayed-stream@~1.0.0:
   integrity sha1-3zrhmayt+31ECqrgsp4icrJOxhk=
 
 discord-module@^2.0.0:
-  version "2.0.6"
-  resolved "https://registry.yarnpkg.com/discord-module/-/discord-module-2.0.6.tgz#5a97f63a0031bf8509f1d34002c74aa7a0718e18"
-  integrity sha512-35sHapOdnIaZnA9/rFQeEM6m09myxV8up+S+MJVZXSPCjJYQgkgwm8vb5glmdJruj5e1UZclUp5TgJb9AUdVRg==
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/discord-module/-/discord-module-2.0.7.tgz#f3cb9df78e526027146653e53415d7c2384bae7c"
+  integrity sha512-aKZ2vS7EjOQrpipCz0PcQHiB5V4iVhvmvIc7wdo04p6yCDvP+/xlwJzP6VAhggeWAIVlDAMVG8TdjwlNdtVz7A==
   dependencies:
     image-to-base64 "^2.0.1"
     request "^2.88.0"

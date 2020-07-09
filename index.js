@@ -3,12 +3,23 @@ const fs = require('fs');
 const Path = require('path');
 
 const { User, Channel } = Discord;
-const token = require('./token');
+const { token, prefix } = require('./config');
 const translations = require('./messages');
 const commands = require('./commands');
 const { backUpMessage } = require('./helper');
+const globals = require('./globals');
 
-const discord = new Discord({ token });
+const discord = new Discord({
+  token,
+  presence: {
+    game: {
+      type: 0,
+      name: 'vortexbot.wtf',
+    },
+  },
+});
+
+globals.discord = discord;
 
 const reactions = {};
 
@@ -65,11 +76,15 @@ const commandsList = {
   },
   status: {
     func: commands.status,
-    admin: true,
+    admin: false,
   },
   restore: {
     func: commands.restore,
     admin: true,
+  },
+  help: {
+    func: (reply) => { reply(translations['help.message']); },
+    admin: false,
   },
 };
 
@@ -84,7 +99,7 @@ discord.onmessage = (message, reply) => {
   }
 
   if (message.getChannel().type === Channel.types.DM) {
-    if (message.content.startsWith('#backup set')) {
+    if (message.content.startsWith(`${prefix}backup set`)) {
       const settings = JSON.parse(fs.readFileSync('data/users.json'));
 
       switch (args[1]) {
@@ -121,7 +136,7 @@ discord.onmessage = (message, reply) => {
 
   backUpMessage(message);
 
-  if (message.content.startsWith('*backup')) {
+  if (message.content.startsWith(`${prefix}backup`)) {
     const perms = message.getChannel().getPermissionOverwrite(message.author.id);
 
     const allowed = perms.MANAGE_MESSAGES;
@@ -152,7 +167,7 @@ discord.on('MESSAGE_REACTION_ADD', (data) => {
 discord.on('GUILD_DELETE', (data) => {
   const settings = JSON.parse(fs.readFileSync('data/left.json'));
 
-  settings.left[data.id] = new Date();
+  settings[data.id] = new Date();
 
   fs.writeFileSync('data/left.json', JSON.stringify(settings));
 });
@@ -237,6 +252,8 @@ setInterval(() => {
     if ((new Date(guild[1]).getTime() + 1000 * 60 * 60 * 24) < new Date()) {
       deleteFolderRecursive(`data/${guild[0]}`);
     }
+
+    fs.unlinkSync(`data/${guild[0]}.json`);
 
     delete settings[guild[0]];
   });
