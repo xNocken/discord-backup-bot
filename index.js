@@ -86,6 +86,14 @@ const commandsList = {
     func: (reply) => { reply(translations['help.message']); },
     admin: false,
   },
+  stop: {
+    func: commands.stop,
+    admin: true,
+  },
+  test: {
+    func: commands.test,
+    admin: true,
+  },
 };
 
 discord.onmessage = (message, reply) => {

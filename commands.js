@@ -1,11 +1,19 @@
+const { Message } = require('discord-module');
 const fs = require('fs');
 const translations = require('./messages');
 const globals = require('./globals');
-const { backUpMessage, getChannelIdByName } = require('./helper');
+const { backUpMessages, getChannelIdByName } = require('./helper');
 
 const index = (reply, args, guildId, channelId, message) => {
   if (globals.indexing[channelId]) {
     reply(translations['index.busy']);
+    return;
+  }
+
+  const settings = JSON.parse(fs.readFileSync(`data/${guildId}.json`));
+
+  if (!settings.channels[channelId]) {
+    reply(translations['index.disabled']);
     return;
   }
 
@@ -31,9 +39,7 @@ const index = (reply, args, guildId, channelId, message) => {
       reply(translations['index.complete'](count));
       globals.indexing[channelId] = false;
       messageList.reverse();
-      messageList.forEach((item) => {
-        backUpMessage(item);
-      });
+      backUpMessages(messageList);
       return;
     }
 
@@ -46,11 +52,18 @@ const index = (reply, args, guildId, channelId, message) => {
 };
 
 const restore = (reply, args, guildId, channelId, message) => {
+  if (globals.restoring[channelId]) {
+    return;
+  }
+
+  globals.restoring[channelId] = true;
+
   const id = getChannelIdByName(args[0], guildId);
 
   message.getChannel().typing();
 
   if (!id) {
+    delete globals.restoring[channelId];
     reply(translations['restore.notfound'](args[0]));
     return;
   }
@@ -60,9 +73,13 @@ const restore = (reply, args, guildId, channelId, message) => {
 
     const startTime = (new Date());
 
+    if (!restoreMessages.length) {
+      reply(translations['restore.empty']);
+    }
+
     reply(translations['restore.start']((restoreMessages.length * 1) * 1000));
 
-    restoreMessages.forEach((Rmessage) => {
+    restoreMessages.forEach((Rmessage, indexx) => {
       const body = {
         content: `${(new Date(Rmessage.time).toLocaleDateString(undefined, {
           year: 'numeric',
@@ -78,7 +95,8 @@ ${Rmessage.attachments[0] ? Rmessage.attachments[0].url : ''}`,
       };
 
       message.getChannel().sendMessageBody(body, () => {
-        if (index === restoreMessages.length - 1) {
+        if (indexx === restoreMessages.length - 1) {
+          delete globals.restoring[channelId];
           reply(translations['restore.complete'](restoreMessages.length, ((new Date())) - startTime));
         }
       });
@@ -141,12 +159,18 @@ const status = (reply, args, guildId, channelId) => {
 };
 
 const stop = (reply, args, guildId, channelId, message) => {
-  if (!globals.indexing[channelId]) {
+  if (!globals.restoring[channelId]) {
     reply(translations['stop.notactive']);
     return;
   }
 
   message.getChannel().emptyQueue();
+};
+
+const test = (reply, args, guildId, channelId) => {
+  const { messages } = JSON.parse(fs.readFileSync(`data/${guildId}/${channelId}.json`));
+
+  backUpMessages(messages.map((message) => new Message(message)));
 };
 
 module.exports = {
@@ -156,4 +180,5 @@ module.exports = {
   restore,
   index,
   stop,
+  test,
 };

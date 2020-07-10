@@ -3,7 +3,7 @@ const { prefix } = require('./config');
 const parseTime = (time) => {
   const parsedTime = new Date(time);
 
-  return `${parsedTime.getMinutes()}:${(parsedTime.getSeconds().toString().length === 1 ? '0' : '') + parsedTime.getSeconds()}`;
+  return `${parsedTime.getMinutes() + 60 * (parsedTime.getHours() - 1)}:${(parsedTime.getSeconds().toString().length === 1 ? '0' : '') + parsedTime.getSeconds()}`;
 };
 
 module.exports = {
@@ -16,9 +16,11 @@ module.exports = {
   'index.start': 'Indexing channel messages. This may take a while.',
   'index.complete': (count) => `Done. Indexed ${count} messages.`,
   'index.busy': 'You are already indexing this channel.',
+  'index.disabled': `Indexing in this channel is disabled. Type "${prefix}backup set on" to activate indexing in this channel.`,
   'restore.notfound': (name) => `No backup found with channel name ${name}.`,
   'restore.start': (time) => `Restore started. This will take approximatly ${parseTime(time)} minutes`,
   'restore.complete': (amount, time) => `Restored ${amount} messages in ${parseTime(time)} minutes.`,
+  'restore.empty': 'Your backup has no messages. Are you sure indexing is enabled?',
   'setting.enable.guild': 'Messages in this channel will be backed up from now on.',
   'setting.disable.guild': `Messages in this channel will no longer be backed up. Use "${prefix}backup delete" in this channel to delete the existing backup.`,
   'delete.sure': (name) => `Confirm the deletion of this backup in channel ${name}.`,
