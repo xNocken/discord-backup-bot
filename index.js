@@ -90,12 +90,6 @@ const commandsList = {
     func: commands.stop,
     admin: true,
   },
-  test: {
-    func: () => {
-      fs.writeFileSync('data/728616688345677898/729603410193678418.json', JSON.stringify({ name: 'general', messages: JSON.parse(fs.readFileSync('data/728616688345677898/729603410193678418.json').toString()).messages.map((object) => ({ ...object, content: '1'.repeat(50) })) }));
-    },
-    admin: false,
-  },
 };
 
 discord.onmessage = (message, reply) => {

@@ -98,19 +98,19 @@ const backUpMessages = (messages) => {
       userChannels = false;
     }
 
+    if (message.type !== 0
+      || (message.author && !users[message.author.id] && !message.author.bot)
+      || (message.nonce && message.nonce.match('backupmessage'))
+      || !settings.channels[channelId]) {
+      return;
+    }
+
     if (userChannels) {
       if (!user[message.author.id].guilds[guildId]) {
         user[message.author.id].guilds[guildId] = {};
       }
 
       user[message.author.id].guilds[guildId][channelId] = true;
-    }
-
-    if (message.type !== 0
-      || (message.author && !users[message.author.id] && !message.author.bot)
-      || (message.nonce && message.nonce.match('backupmessage'))
-      || !settings.channels[channelId]) {
-      return;
     }
 
     channel.messages.push({
