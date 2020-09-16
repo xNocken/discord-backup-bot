@@ -210,22 +210,28 @@ discord.on('GUILD_MEMBER_ADD', (data) => {
 
   fs.writeFileSync('data/users.json', JSON.stringify(settings));
 
+  const send = (id) => {
+    const channel = discord.getChannelById(id);
+
+    if (channel) {
+      channel.sendMessage(translations['private.tos'], false, () => { });
+    } else {
+      setTimeout(() => send(id), 1000);
+    }
+  };
+
   const user = discord.getUserById(data.user.id);
 
   if (!user) {
     User.getUserById(data.user.id, (newUser) => {
       newUser.getPrivateChannelId((id) => {
-        setTimeout(() => {
-          discord.getChannelById(id).sendMessage(translations['private.tos'], false, () => { });
-        }, 1000);
+        setTimeout(() => send(id), 5000);
       });
     });
   }
 
   user.getPrivateChannelId((id) => {
-    setTimeout(() => {
-      discord.getChannelById(id).sendMessage(translations['private.tos'], false, () => { });
-    }, 1000);
+    setTimeout(() => send(id), 5000);
   });
 });
 
